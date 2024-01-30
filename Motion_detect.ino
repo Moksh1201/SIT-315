@@ -1,6 +1,6 @@
 // Defining the constants to whcih the light and PIR sensor is connected
-const int MOTION_SENSOR_PIN = 7;  // Pin whihc will catch motion sensor's output
-const int LED_PIN = 3;            // Pin for LED's input
+const int MOTION_SENSOR_PIN = 4;  // Pin whihc will catch motion sensor's output
+const int LED_PIN = 2;            // Pin for LED's input
 
 // 	It is placed for keep check on motion sensor current state
 int currState = LOW;
