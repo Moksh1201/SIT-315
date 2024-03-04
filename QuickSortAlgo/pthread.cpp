@@ -4,7 +4,7 @@
 #include <ctime>
 #include <chrono>
 #include <pthread.h>
-#include <algorithm> // Required for std::sort
+#include <algorithm> 
 
 using namespace std;
 using namespace std::chrono;
@@ -44,30 +44,19 @@ void quickSort(vector<int>& arr, int left, int right) {
     if (right - left < 1000) { // Use sequential sort for small subarrays
         sort(arr.begin() + left, arr.begin() + right + 1);
     } else {
-        // Load balancing: process larger partition in current thread
-        if (j - left > right - i) {
-            quickSort(arr, left, j); // Recursively sort left partition
-            // Create thread for smaller partition
-            pthread_t rightThread;
-            struct ThreadArgs rightArgs;
-            rightArgs.arr = &arr;
-            rightArgs.left = i;
-            rightArgs.right = right;
-            pthread_create(&rightThread, NULL, threadedQuickSort, (void*)&rightArgs);
-            // Wait for thread to finish
-            pthread_join(rightThread, NULL);
-        } else {
-            quickSort(arr, i, right); // Recursively sort right partition
-            // Create thread for smaller partition
-            pthread_t leftThread;
-            struct ThreadArgs leftArgs;
-            leftArgs.arr = &arr;
-            leftArgs.left = left;
-            leftArgs.right = j;
-            pthread_create(&leftThread, NULL, threadedQuickSort, (void*)&leftArgs);
-            // Wait for thread to finish
-            pthread_join(leftThread, NULL);
-        }
+        // For Creating thread for smaller partition
+        pthread_t thread;
+        struct ThreadArgs args;
+        args.arr = &arr;
+        args.left = left;
+        args.right = j;
+        pthread_create(&thread, NULL, threadedQuickSort, (void*)&args);
+        
+        // Sort the larger partition in the current thread
+        quickSort(arr, i, right);
+        
+        // Wait for the thread to finish
+        pthread_join(thread, NULL);
     }
 }
 
