@@ -1,89 +1,109 @@
 #include <iostream>
-#include <fstream>
-#include <ctime>
 #include <cstdlib>
+#include <ctime>
 #include <mpi.h>
+#include <chrono>
 
 using namespace std;
 
-void multiplyMatrices(int **A, int **B, int **C, int N) {
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            C[i][j] = 0;
-            for (int k = 0; k < N; ++k) {
-                C[i][j] += A[i][k] * B[k][j];
+void matrixMultiplication(int **mat1, int **mat2, int **result, int rows1, int cols1, int cols2) {
+    for (int i = 0; i < rows1; i++) {
+        for (int j = 0; j < cols2; j++) {
+            result[i][j] = 0;
+            for (int k = 0; k < cols1; k++) {
+                result[i][j] += mat1[i][k] * mat2[k][j];
             }
         }
     }
 }
 
-int main(int argc, char **argv) {
+void printMatrix(int **matrix, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            cout << matrix[i][j] << " ";
+        }
+        cout << endl;
+    }
+}
+
+int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
+
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    const int N = 4;
+    int rows1 = 3, cols1 = 3, cols2 = 3;
 
-    // Allocate memory for matrices A, B, and C
-    int **A = new int *[N];
-    int **B = new int *[N];
-    int **C = new int *[N];
-    for (int i = 0; i < N; ++i) {
-        A[i] = new int[N];
-        B[i] = new int[N];
-        C[i] = new int[N];
+    // Allocate memory for matrices in all processes
+    int **mat1 = new int*[rows1];
+    int **mat2 = new int*[cols1];
+    int **result = new int*[rows1];
+    for (int i = 0; i < rows1; i++) {
+        mat1[i] = new int[cols1];
+        result[i] = new int[cols2];
+    }
+    for (int i = 0; i < cols1; i++) {
+        mat2[i] = new int[cols2];
     }
 
-    srand(time(0) + rank); // Add rank to ensure different seed for each process
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            A[i][j] = rand() % 100;
-            B[i][j] = rand() % 100;
-        }
-    }
-
-    // Scatter matrix A and B among processes
-    MPI_Bcast(&(A[0][0]), N * N, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&(B[0][0]), N * N, MPI_INT, 0, MPI_COMM_WORLD);
-
-    // Allocate memory for the partial result matrix
-    int **partialC = new int *[N];
-    for (int i = 0; i < N; ++i) {
-        partialC[i] = new int[N];
-    }
-
-    // Each process performs partial matrix multiplication
-    multiplyMatrices(A, B, partialC, N);
-
-    // Gather partial results to root process
-    MPI_Gather(&(partialC[0][0]), N * N / size, MPI_INT, &(C[0][0]), N * N / size, MPI_INT, 0, MPI_COMM_WORLD);
-
-    // Output results from root process
+    // Generate random values for matrices only on root process (rank 0)
     if (rank == 0) {
-        ofstream outputFile("output.txt");
-        for (int i = 0; i < N; ++i) {
-            for (int j = 0; j < N; ++j) {
-                outputFile << C[i][j] << " ";
+        srand(time(0)); // Seed for random number generation
+        for (int i = 0; i < rows1; i++) {
+            for (int j = 0; j < cols1; j++) {
+                mat1[i][j] = rand() % 10; // Random values between 0 and 9
             }
-            outputFile << endl;
         }
-        outputFile.close();
+        for (int i = 0; i < cols1; i++) {
+            for (int j = 0; j < cols2; j++) {
+                mat2[i][j] = rand() % 10; // Random values between 0 and 9
+            }
+        }
+    }
+
+    // Broadcast matrix data to all processes
+    for (int i = 0; i < rows1; i++) {
+        MPI_Bcast(mat1[i], cols1, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+    for (int i = 0; i < cols1; i++) {
+        MPI_Bcast(mat2[i], cols2, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+
+    // Perform matrix multiplication on each process
+    std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
+    start = std::chrono::high_resolution_clock::now();
+    matrixMultiplication(mat1, mat2, result, rows1, cols1, cols2);
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+
+    // Print the matrices and the result on root process (rank 0)
+    if (rank == 0) {
+        cout << "Matrix 1:" << endl;
+        printMatrix(mat1, rows1, cols1);
+
+        cout << "Matrix 2:" << endl;
+        printMatrix(mat2, cols1, cols2);
+
+        cout << "Result Matrix:" << endl;
+        printMatrix(result, rows1, cols2);
+
+        cout << "Execution time: " << duration.count() << " seconds" << endl;
     }
 
     // Deallocate memory
-    for (int i = 0; i < N; ++i) {
-        delete[] A[i];
-        delete[] B[i];
-        delete[] C[i];
-        delete[] partialC[i];
+    for (int i = 0; i < rows1; i++) {
+        delete[] mat1[i];
+        delete[] result[i];
     }
-    delete[] A;
-    delete[] B;
-    delete[] C;
-    delete[] partialC;
+    delete[] mat1;
+    delete[] result;
+    for (int i = 0; i < cols1; i++) {
+        delete[] mat2[i];
+    }
+    delete[] mat2;
 
     MPI_Finalize();
-
     return 0;
 }
